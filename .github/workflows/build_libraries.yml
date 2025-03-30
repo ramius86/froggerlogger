@@ -60,7 +60,7 @@ jobs:
     - name: Install Dependencies (Debian 12)
       run: |
         apt-get update
-        # Install essentials: C++ compiler, CMake, Ninja, Boost dev libraries (version 1.74 on Debian 12)
+        # Install essentials: C++ compiler, CMake, Ninja, Boost dev libraries, make, file utility, binutils
         apt-get install -y --no-install-recommends \
           g++ \
           cmake \
@@ -69,7 +69,9 @@ jobs:
           libboost-filesystem-dev \
           libboost-system-dev \
           libboost-thread-dev \
-          make # Some cmake steps might still invoke make
+          make \
+          file \
+          binutils
         # Clean up apt cache
         rm -rf /var/lib/apt/lists/*
 
