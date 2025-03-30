@@ -46,8 +46,7 @@ target_sources (btc_serverLogger_x64 PRIVATE
 if(WIN32)
     target_sources(btc_serverLogger_x64 PRIVATE
         "src/dllmain.def" # Only needed for Windows DLL exports
-        "include/coutToDebug.hpp" # Include header only if needed for compilation context (rarely)
-                                  # Typically, just including it in dllmain.cpp guarded by #ifdef is enough
+        # "include/coutToDebug.hpp" # Including header in source file is usually enough
     )
 endif()
 
@@ -61,12 +60,13 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 FetchContent_Declare(json URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.3.zip)
 FetchContent_MakeAvailable(json)
 
-# Configure Boost
-# These static settings might increase binary size but reduce runtime dependencies, keep if intentional
-set(Boost_USE_STATIC_LIBS ON)
-set(Boost_USE_STATIC_RUNTIME ON) # This influences MSVC runtime, less impact on GCC/Clang
+# Configure Boost settings PER PLATFORM
 
 if(MSVC)
+    # Apply static Boost settings ONLY for MSVC
+    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_RUNTIME ON)
+
     set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS OFF) # Good practice when using .def file
 
     # Configure Boost for Windows
@@ -88,11 +88,9 @@ if(MSVC)
         /std:c++17
         $<$<CONFIG:Release>:/O2>
     )
-    # Add include directory specifically for coutToDebug if needed (usually handled by target_include_directories)
-    # target_include_directories(btc_serverLogger_x64 PRIVATE include) # Already done above
 
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # GCC/Clang specific options
+    # GCC/Clang specific options (NO specific Boost static linking flags here)
     target_compile_options(btc_serverLogger_x64 PRIVATE
         -Wall
         -Wextra
@@ -116,28 +114,20 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Cl
 endif()
 
 # Find Boost package (version 1.74 required, matches Debian 12)
-find_package(Boost 1.74 REQUIRED COMPONENTS system filesystem thread) # Explicitly list components if known
+# On Linux, without Boost_USE_STATIC_LIBS, it will default to finding shared libs (.so)
+find_package(Boost 1.74 REQUIRED COMPONENTS system filesystem thread) # Explicitly list components
 
 # Link libraries
 target_link_libraries(btc_serverLogger_x64 PRIVATE
     Boost::boost            # Meta-target, links components found
-    Boost::filesystem       # Link explicitly if needed (esp. if not using Boost::boost)
+    Boost::filesystem       # Link explicitly if needed (esp. if not using Boost::boost meta-target or for clarity)
     Boost::system           # Often a dependency of filesystem or thread
     Boost::thread           # Needed if using Boost threads
     nlohmann_json::nlohmann_json
 )
 
-# Ensure target_link_libraries uses the Boost:: components syntax which is preferred
-
-# The LINK_FLAGS property is less preferred than target_link_options
-# if(UNIX AND NOT APPLE)
-#     set_target_properties(btc_serverLogger_x64 PROPERTIES
-#         LINK_FLAGS "-Wl,--no-undefined" # Moved to target_link_options
-#     )
-# endif()
-
-# Include glibc_version.h (though its effect is limited)
-if(UNIX AND NOT APPLE)
-  target_compile_definitions(btc_serverLogger_x64 PRIVATE USING_GLIBC_VERSION_H) # Example definition
-  target_include_directories(btc_serverLogger_x64 PRIVATE include) # Ensure include path is set
+# Include glibc_version.h if needed (ensure include path is correct)
+if(UNIX AND NOT APPLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/include/glibc_version.h")
+  # target_compile_definitions(btc_serverLogger_x64 PRIVATE USING_GLIBC_VERSION_H) # Optional: Define a macro if your code uses it
+  target_include_directories(btc_serverLogger_x64 PRIVATE include) # Ensure include path is set (already done above)
 endif()
